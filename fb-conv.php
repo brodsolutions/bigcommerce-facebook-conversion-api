@@ -1,10 +1,9 @@
 <?php
 /* CONFIG */
 require '/PATH/TO/vendor/autoload.php';
-
 use GuzzleHttp\Client;
-/* ORDER CREATED WEBHOOK */
 
+/* ORDER CREATED WEBHOOK */
 $method = $_SERVER['REQUEST_METHOD'];
 http_response_code(200); // Respond to webhook with OK 200, required by BigCommerce
 $webhook = json_decode(file_get_contents('php://input'), true); // Decode JSON webhook response to an array
@@ -12,10 +11,12 @@ if (!$webhook) $webhook = array(); // Set webhook variables to array
 $orderId = $webhook['data']['id']; // Get the Order ID
 $orderStoreHash = str_replace("stores/", "", $webhook['producer']);  // Get the store hash 
 
-// SET VARIABLES
+/* SET VARIABLES */
+// BigCommerce API
 $bigcommerceBaseUri = 'https://api.bigcommerce.com/stores/';
 $bigcommerceClientId = '<CLIENT ID>';
 $bigcommerceAuthToken = '<AUTH TOKEN>';
+// Facebook Business Manager
 $facebookBaseUri = 'https://graph.facebook.com/v10.0/';
 $facebookPixelId = '<PIXEL ID>';
 $facebookAuthToken = '<ACCESS TOKEN>';
@@ -33,20 +34,15 @@ $bigcommerceClient = new Client(
         ]
     ]
 );
-// retrieve response from API call
 $orderResponse = bigCommerceOrderAPIGet($bigcommerceClient, $bigcommerceBaseUri . $orderStoreHash . '/v2/orders/' . $orderId); // Query the Order
 $order = json_decode($orderResponse->getBody(), TRUE);  // set JSON Order response to array
 $productUrl = $order['products']['url']; // Get the Order Product URL
 $productResponse = bigCommerceOrderAPIGet($bigcommerceClient, $productUrl); // Query the Products
 $products = json_decode($productResponse->getBody(), TRUE); // set JSON Product response to array
+
 /* FACEBOOK CONVERSION API */
-// RULES TO INCLUDE OR EXCLUDE ORDERS
-if (
-    $order['order_source'] !== 'manual' &&
-    ($order['payment_status'] == 'captured' ||
-        $order['payment_status'] == 'authorized' ||
-        $order['order_source'] == 'facebookshop')
-) {
+// RULES TO INCLUDE OR EXCLUDE ORDERS (source is not manual/facebookshop and payment is captured or authorized)
+if (($order['order_source'] !== 'manual' || $order['order_source'] == 'facebookshop') && ($order['payment_status'] == 'captured' || $order['payment_status'] == 'authorized')) {
     $conversionContents = [];
     // Create Facebook "Contents" for each Order Product
     foreach ($products as $product) {
@@ -85,15 +81,16 @@ if (
         )],
         "test_event_code" => "<TESTxxxxx>" // for Test Events only
     );
+    // Create the Facebook Client
     $facebookClient = new Client(
         [
             'base_uri' => $facebookBaseUri,
             'headers' => ['access_token' => $facebookAuthToken, 'content-type' => 'application/json', 'accept' => 'application/json']
         ]
-    ); // create the client
+    );
+    // Send the Payload to Facebook
     facebookConversionAPIPost($facebookClient, $facebookBaseUri . $facebookPixelId . '/events?access_token=' . $facebookAuthToken, $conversionOrder);
 }
-
 
 /* API GUZZLE CALLS, code exists upon error */
 // GET BIGCOMMERCE ORDER DETAILS
