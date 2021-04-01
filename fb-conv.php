@@ -14,18 +14,25 @@ if (!$webhook) $webhook = array(); // Set webhook variables to array
 $orderID = $webhook['data']['id']; // Get the Order ID
 $orderStoreHash = str_replace("stores/", "", $webhook['producer']);  // Get the store hash
 
+// SET VARIABLES
+$bigcommerceBaseUri = 'https://api.bigcommerce.com/stores/'
+$bigcommerceClientId = BIGCOMMERCE CLIENT ID;
+$bigcommerceAuthToken = BIGCOMMERCE ACCESS TOKEN;
+$facebookBaseUri = 'https://graph.facebook.com/v10.0/'
+$facebookApiBase = PIXEL ID . '/events';
+$facebookAuthToken = '?access_token='. FACEBOOK ACCESS TOKEN;
+
 /* BIGCOMMERCE API GET ORDER */
-function letsGO($config, $apiConfig, $apiName, $orderID)
-{
-    // set the API header & client
-    $headers = [
-      'x-auth-client' => CLIENT ID, 
-      'x-auth-token' => AUTH TOKEN, 
+
+    // set the API Client for BigCommerce
+    $bigcommerceClient = new Client(['base_uri' => 'https://api.bigcommerce.com/stores', 'headers' => [
+      'x-auth-client' => $bigcommerceClientId, 
+      'x-auth-token' => $bigcommerceAuthToken, 
       'content-type' => 'application/json', 
-      'accept' => 'application/json'];
-    $client = new Client(['base_uri' => 'https://api.bigcommerce.com/stores', 'headers' => isset($headers) ? $headers : []]);
+      'accept' => 'application/json']
+                         ]);
     // retrieve response from API call
-    $orderResponse = bigCommerceOrderAPIGet($client, 'https://api.bigcommerce.com/stores/' . $orderStoreHash . '/v2/orders/' . $orderID); // Query the Order
+    $orderResponse = bigCommerceOrderAPIGet($client, $bigcommerceBaseUri.$orderStoreHash.'/v2/orders/'.$orderID); // Query the Order
     if ($orderResponse !== "error") {
         $order = json_decode($orderResponse->getBody(), TRUE);  // set JSON Order response to array
         $productUrl = $order['products']['url']; // Get the Order Product URL
@@ -40,6 +47,7 @@ function letsGO($config, $apiConfig, $apiName, $orderID)
                     $order['order_source'] == 'facebookshop')
             ) {
                 $conversionContents = [];
+            // Create Facebook "Contents" for each Order Product
     foreach ($orderProducts as $orderProduct) {
         $conversionContents[] = array(
             "id" => $orderProduct['sku'],
@@ -47,49 +55,47 @@ function letsGO($config, $apiConfig, $apiName, $orderID)
             "quantity" => $orderProduct['quantity']
         );
     }
+            // Facebook Payload
     $conversionOrder = array(
         "data" => [array(
             "event_name" => "Purchase",
-            "event_time" => strtotime($order['date_created']),
-            "action_source" => "webhook",
+            "event_time" => strtotime($order['date_created']), // set to order time in UTC
+            "action_source" => "webhook",  // set to anything you want
             "user_data" => array(
                 "client_ip_address" => $order['ip_address'],
                 "client_user_agent" => $apiConfig['facebook_user_agent'],
-                "em"=>hash('sha256',str_replace(" ","",strtolower($order['billing_address']['email']))),
-                "ph"=>hash('sha256',preg_replace('/\D/', '', $order['billing_address']['phone']))
+                "em"=>str_replace(" ","",strtolower($order['billing_address']['email'])),  // optional, facebook will hash
+                "ph"=>hash('sha256',preg_replace('/\D/', '', $order['billing_address']['phone']))  // optional, must hash
             ),
             "custom_data" => array(
                 "currency" => "usd",
-                "order_id" => $order['id'],
+                "order_id" => $order['id'], // facebook will hash
                 "value" => number_format($order['total_inc_tax'], 2),
                 "num_items" => $order['items_total'],
                 "content_type" => 'product',
-                "contents" => $conversionContents,
-                "order_source" => $order['order_source'],
-                "payment_method" => $order['payment_method'],
-                "coupon" => number_format($order['coupon_discount'], 2),
-                "discount" => number_format($order['discount_amount'], 2),
-                "tax" => number_format($order['total_tax'], 2),
-                "shipping" => number_format($order['base_shipping_cost'], 2)
+                "contents" => $conversionContents, // optional Products
+                "order_source" => $order['order_source'], // optional
+                "payment_method" => $order['payment_method'], // optional
+                "coupon" => number_format($order['coupon_discount'], 2), // optional
+                "discount" => number_format($order['discount_amount'], 2), // optional
+                "tax" => number_format($order['total_tax'], 2), // optional
+                "shipping" => number_format($order['base_shipping_cost'], 2) // optional
             )
         )],
-        // USE FOR TEST EVENTS ON FACEBOOK PIXEL
-        "test_event_code" => "TEST18241"
+        "test_event_code" => "TEST18241" // for Test Events only
     );
-    $facebookHeaders = ['access_token' => $apiConfig['facebook_auth_token'], 'content-type' => 'application/json', 'accept' => 'application/json'];
-    $facebookClient = new Client(['base_uri' => $apiConfig['facebook_base_uri'], 'headers' => isset($facebookHeaders) ? $facebookHeaders : []]); // create the client
-    $facebookAPIBase = $apiConfig['facebook_api_base'] . $apiConfig['facebook_auth_token'];
-    facebookConversionAPIPost($facebookClient, $facebookAPIBase, $conversionOrder);
+    $facebookClient = new Client(['base_uri' => $facebookBaseUri, 'headers' => ['access_token' => $facebookAuthToken, 'content-type' => 'application/json', 'accept' => 'application/json']]); // create the client
+    $facebookUrl = $facebookApiBase . $facebookAuthToken;
+    facebookConversionAPIPost($facebookClient, $facebookUrl, $conversionOrder);
             }
         }
     }
-}
 
 // GUZZLE GET BIGCOMMERCE ORDER DETAILS
-function bigCommerceOrderAPIGet($client, $apiBase)
+function bigCommerceOrderAPIGet($bigcommerceClient, $apiBase)
 {
     try {
-        $response = $client->request('GET', $apiBase);
+        $response = $bigcommerceClient->request('GET', $apiBase);
     } catch (ClientException $e) {
         //$response = $e->getResponse(); // error checking
         $response = 'error';
@@ -98,10 +104,10 @@ function bigCommerceOrderAPIGet($client, $apiBase)
 }
 
 // GUZZLE POST FACEBOOK CONVERSION API
-function facebookConversionAPIPost(&$client, $apiBase, $conversionOrder)
+function facebookConversionAPIPost($facebookClient, $apiBase, $conversionOrder)
 {
     try {
-        $response = $client->request('POST', $apiBase, ['json' => $conversionOrder]);
+        $response = $facebookClient->request('POST', $apiBase, ['json' => $conversionOrder]);
         return $response;
     } catch (ClientException $e) {
         $response = $e->getResponse();
