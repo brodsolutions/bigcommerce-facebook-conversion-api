@@ -8,13 +8,13 @@ Utilizing the Order Creation Webhook, send the newly created Order ID to the PHP
 ## Set your Variables
 ### BigCommerce
 Create an API with Order (Read) scope
-x-auth-client = Client ID
-x-auth-token = Auth Token
+- x-auth-client = Client ID
+- x-auth-token = Auth Token
 
 ### Facebook Business Manager
-Generate a Token
-facebook-auth-token = Facebook Auth Token
-pixel-id = Business Pixel ID
+Generate a Access Token via Event Manager <https://developers.facebook.com/docs/marketing-api/conversions-api/get-started#via-events-manager>
+- facebook-auth-token = Facebook Auth Token
+- pixel-id = Business Pixel ID
 
 ## Update PHP File
 Set your variable from above.
