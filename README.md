@@ -6,19 +6,17 @@ Utilizing the Order Creation Webhook, send the newly created Order ID to the PHP
 ## Composer Requirements
 `composer require guzzlehttp/guzzle`
 
-## Set your Variables
+## Set your Variables in PHP file
 ### BigCommerce
 Create an API with Order (Read) scope
-- x-auth-client = Client ID
-- x-auth-token = Auth Token
+- Client ID
+- Auth Token
 
 ### Facebook Business Manager
 Generate a Access Token via **[Event Manager](https://developers.facebook.com/docs/marketing-api/conversions-api/get-started#via-events-manager)**
-- facebook-auth-token = Facebook Auth Token
-- pixel-id = Business Pixel ID
+- Access Token
+- Pixel ID
 
-## Update PHP File
-Set your variable from above.
 Alter your **[Facebook Payload](https://developers.facebook.com/docs/marketing-api/conversions-api/payload-helper/)** if desired ($conversionOrder).
 
 *Recommend setting the 'test_event_code' to check it's working, remove for production.
